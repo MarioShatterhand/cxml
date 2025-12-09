@@ -159,6 +159,97 @@ class RenderXmlTest extends TestCase
         self::assertArrayNotHasKey('UNSPSC', $classifications);
     }
 
+    public function testHeaderDefaultDomainIsNetworkId(): void
+    {
+        $header = new \CXml\Models\Header();
+
+        self::assertEquals('NetworkId', $header->getFromDomain());
+        self::assertEquals('NetworkId', $header->getToDomain());
+        self::assertEquals('NetworkId', $header->getSenderDomain());
+    }
+
+    public function testHeaderCustomDomainSetters(): void
+    {
+        $header = (new \CXml\Models\Header())
+            ->setFromDomain('DUNS')
+            ->setToDomain('AribaNetworkUserId')
+            ->setSenderDomain('NetworkId');
+
+        self::assertEquals('DUNS', $header->getFromDomain());
+        self::assertEquals('AribaNetworkUserId', $header->getToDomain());
+        self::assertEquals('NetworkId', $header->getSenderDomain());
+    }
+
+    public function testHeaderRendersWithDefaultNetworkIdDomain(): void
+    {
+        $cXml = $this->getEnvelope();
+
+        $header = (new \CXml\Models\Header())
+            ->setFrom('AN01234567890')
+            ->setTo('AN09876543210')
+            ->setSenderIdentity('AN01234567890')
+            ->setUserAgent('TestAgent 1.0');
+        $cXml->setHeader($header);
+
+        $message = (new PunchOutOrderMessage())
+            ->setBuyerCookie('test-cookie')
+            ->setCurrency('EUR')
+            ->setLocale('en-US');
+        $cXml->addMessage($message);
+
+        $messageHeader = (new PunchOutOrderMessageHeader())
+            ->setTotalAmount(100.00)
+            ->setShippingCost(0)
+            ->setShippingDescription('Free')
+            ->setTaxSum(0)
+            ->setTaxDescription('None');
+        $message->setHeader($messageHeader);
+
+        $resultXml = $cXml->render();
+
+        // Assert domain="NetworkId" is present for all credentials
+        self::assertStringContainsString('<Credential domain="NetworkId">', $resultXml);
+        self::assertStringContainsString('<Identity>AN01234567890</Identity>', $resultXml);
+        self::assertStringContainsString('<Identity>AN09876543210</Identity>', $resultXml);
+        self::assertStringContainsString('<UserAgent>TestAgent 1.0</UserAgent>', $resultXml);
+    }
+
+    public function testHeaderRendersWithCustomDomains(): void
+    {
+        $cXml = $this->getEnvelope();
+
+        $header = (new \CXml\Models\Header())
+            ->setFrom('123456789')
+            ->setFromDomain('DUNS')
+            ->setTo('buyer@example.com')
+            ->setToDomain('AribaNetworkUserId')
+            ->setSenderIdentity('AN01234567890')
+            ->setSenderDomain('NetworkId')
+            ->setUserAgent('TestAgent 1.0');
+        $cXml->setHeader($header);
+
+        $message = (new PunchOutOrderMessage())
+            ->setBuyerCookie('test-cookie')
+            ->setCurrency('EUR')
+            ->setLocale('en-US');
+        $cXml->addMessage($message);
+
+        $messageHeader = (new PunchOutOrderMessageHeader())
+            ->setTotalAmount(100.00)
+            ->setShippingCost(0)
+            ->setShippingDescription('Free')
+            ->setTaxSum(0)
+            ->setTaxDescription('None');
+        $message->setHeader($messageHeader);
+
+        $resultXml = $cXml->render();
+
+        // Assert different domains are rendered correctly
+        self::assertStringContainsString('<Credential domain="DUNS">', $resultXml);
+        self::assertStringContainsString('<Credential domain="AribaNetworkUserId">', $resultXml);
+        self::assertStringContainsString('<Credential domain="NetworkId">', $resultXml);
+    }
+
     private function getEnvelope(): CXml
     {
         $cXml = new CXml();

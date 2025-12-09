@@ -12,6 +12,15 @@ class Header
     private $to;
     private $userAgent;
 
+    /** @var string Domain for From credential (default: NetworkId for Ariba ANID) */
+    private $fromDomain = 'NetworkId';
+
+    /** @var string Domain for To credential (default: NetworkId for Ariba ANID) */
+    private $toDomain = 'NetworkId';
+
+    /** @var string Domain for Sender credential (default: NetworkId for Ariba ANID) */
+    private $senderDomain = 'NetworkId';
+
     public function getSenderIdentity()
     {
         return $this->senderIdentity;
@@ -67,6 +76,39 @@ class Header
         return $this;
     }
 
+    public function getFromDomain(): string
+    {
+        return $this->fromDomain;
+    }
+
+    public function setFromDomain(string $fromDomain): self
+    {
+        $this->fromDomain = $fromDomain;
+        return $this;
+    }
+
+    public function getToDomain(): string
+    {
+        return $this->toDomain;
+    }
+
+    public function setToDomain(string $toDomain): self
+    {
+        $this->toDomain = $toDomain;
+        return $this;
+    }
+
+    public function getSenderDomain(): string
+    {
+        return $this->senderDomain;
+    }
+
+    public function setSenderDomain(string $senderDomain): self
+    {
+        $this->senderDomain = $senderDomain;
+        return $this;
+    }
+
     public function parse(\SimpleXMLElement $headerXml) : void
     {
         $this->senderIdentity = (string)$headerXml->xpath('Sender/Credential/Identity')[0];
@@ -77,18 +119,18 @@ class Header
     {
         $headerNode = $parentNode->addChild('Header');
 
-        $this->addNode($headerNode, 'From', $this->getFrom() ?? 'Unknown');
-        $this->addNode($headerNode, 'To', $this->getTo() ?? 'Unknown');
-        $this->addNode($headerNode, 'Sender', $this->getSenderIdentity() ?? 'Unknown')
+        $this->addNode($headerNode, 'From', $this->getFrom() ?? 'Unknown', $this->getFromDomain());
+        $this->addNode($headerNode, 'To', $this->getTo() ?? 'Unknown', $this->getToDomain());
+        $this->addNode($headerNode, 'Sender', $this->getSenderIdentity() ?? 'Unknown', $this->getSenderDomain())
             ->addChild('UserAgent', $this->getUserAgent() ?? 'Unknown');
     }
 
-    private function addNode(\SimpleXMLElement $parentNode, string $nodeName, string $identity) : \SimpleXMLElement
+    private function addNode(\SimpleXMLElement $parentNode, string $nodeName, string $identity, string $domain = 'NetworkId') : \SimpleXMLElement
     {
         $node = $parentNode->addChild($nodeName);
 
         $credentialNode = $node->addChild('Credential');
-        $credentialNode->addAttribute('domain', '');
+        $credentialNode->addAttribute('domain', $domain);
 
         $credentialNode->addChild('Identity', $identity);
 
