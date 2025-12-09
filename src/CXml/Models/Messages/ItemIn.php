@@ -24,11 +24,14 @@ class ItemIn
     /** @var string */
     private $unitOfMeasure;
 
-    /** @var string */
+    /** @var string @deprecated Use addClassification() instead */
     private $classificationDomain;
 
-    /** @var string */
+    /** @var string @deprecated Use addClassification() instead */
     private $classification;
+
+    /** @var array<string, string> domain => value */
+    private array $classifications = [];
 
     /** @var string */
     private $manufacturerPartId;
@@ -135,6 +138,31 @@ class ItemIn
         return $this;
     }
 
+    /**
+     * Add a classification (supports multiple domains)
+     *
+     * @param string $domain e.g. 'UNSPSC', 'EAN', 'GTIN'
+     * @param string $value  e.g. '41106104', '5901234567890'
+     * @return self
+     */
+    public function addClassification(string $domain, string $value): self
+    {
+        if (!empty($value)) {
+            $this->classifications[$domain] = $value;
+        }
+        return $this;
+    }
+
+    /**
+     * Get all classifications
+     *
+     * @return array<string, string>
+     */
+    public function getClassifications(): array
+    {
+        return $this->classifications;
+    }
+
     public function getManufacturerPartId(): string
     {
         return $this->manufacturerPartId;
@@ -184,9 +212,8 @@ class ItemIn
         // UnitOfMeasure
         $itemDetailsNode->addChild('UnitOfMeasure', $this->unitOfMeasure);
 
-        // Classification
-        $itemDetailsNode->addChild('Classification', $this->classification)
-            ->addAttribute('domain', $this->classificationDomain);
+        // Classifications (supports multiple)
+        $this->renderClassifications($itemDetailsNode);
 
         // Manufacturer
         $itemDetailsNode->addChild('ManufacturerPartID', $this->manufacturerPartId);
@@ -201,6 +228,25 @@ class ItemIn
     private function formatPrice(float $price)
     {
         return number_format($price, 2, '.', '');
+    }
+
+    /**
+     * Render all classifications (supports multiple domains)
+     * Falls back to legacy single classification for backward compatibility
+     */
+    private function renderClassifications(\SimpleXMLElement $itemDetailsNode): void
+    {
+        // New array-based classifications (preferred)
+        foreach ($this->classifications as $domain => $value) {
+            $itemDetailsNode->addChild('Classification', htmlspecialchars($value, ENT_XML1))
+                ->addAttribute('domain', $domain);
+        }
+
+        // Fallback: legacy single classification (backward compatibility)
+        if (empty($this->classifications) && $this->classification && $this->classificationDomain) {
+            $itemDetailsNode->addChild('Classification', $this->classification)
+                ->addAttribute('domain', $this->classificationDomain);
+        }
     }
 
     public function getLeadTime(): ?int

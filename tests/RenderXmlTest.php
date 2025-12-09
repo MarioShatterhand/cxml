@@ -68,6 +68,97 @@ class RenderXmlTest extends TestCase
         self::assertStringEqualsFile(__DIR__ . '/sample-PunchOutOrderMessage.xml', $resultXml);
     }
 
+    public function testRenderingOfItemWithMultipleClassifications(): void
+    {
+        $cXml = $this->getEnvelope();
+        $cXml->setHeader(new \CXml\Models\Header());
+
+        $message = (new PunchOutOrderMessage())
+            ->setBuyerCookie('test-cookie')
+            ->setCurrency('PLN')
+            ->setLocale('pl-PL');
+        $cXml->addMessage($message);
+
+        $header = (new PunchOutOrderMessageHeader())
+            ->setTotalAmount(100.00)
+            ->setShippingCost(10.00)
+            ->setShippingDescription('Shipping')
+            ->setTaxSum(23.00)
+            ->setTaxDescription('VAT');
+        $message->setHeader($header);
+
+        // Item with MULTIPLE classifications
+        $item = (new ItemIn())
+            ->setQuantity(1)
+            ->setSupplierPartId('TEST-SKU')
+            ->setUnitPrice(100.00)
+            ->setDescription('Test Product')
+            ->setUnitOfMeasure('EA')
+            ->addClassification('UNSPSC', '41106104')
+            ->addClassification('EAN', '5901234567890');
+        $message->addItem($item);
+
+        $resultXml = $cXml->render();
+
+        // Assert both classifications are present
+        self::assertStringContainsString('<Classification domain="UNSPSC">41106104</Classification>', $resultXml);
+        self::assertStringContainsString('<Classification domain="EAN">5901234567890</Classification>', $resultXml);
+    }
+
+    public function testBackwardCompatibilityWithLegacyClassification(): void
+    {
+        $cXml = $this->getEnvelope();
+        $cXml->setHeader(new \CXml\Models\Header());
+
+        $message = (new PunchOutOrderMessage())
+            ->setBuyerCookie('test-cookie')
+            ->setCurrency('EUR')
+            ->setLocale('de-DE');
+        $cXml->addMessage($message);
+
+        $header = (new PunchOutOrderMessageHeader())
+            ->setTotalAmount(100.00)
+            ->setShippingCost(0)
+            ->setShippingDescription('Free')
+            ->setTaxSum(19.00)
+            ->setTaxDescription('VAT');
+        $message->setHeader($header);
+
+        // Item with LEGACY single classification (backward compatibility)
+        $item = (new ItemIn())
+            ->setQuantity(1)
+            ->setSupplierPartId('LEGACY-SKU')
+            ->setUnitPrice(100.00)
+            ->setDescription('Legacy Product')
+            ->setUnitOfMeasure('EA')
+            ->setClassificationDomain('EAN')  // Legacy method
+            ->setClassification('1234567890'); // Legacy method
+        $message->addItem($item);
+
+        $resultXml = $cXml->render();
+
+        // Assert legacy classification works
+        self::assertStringContainsString('<Classification domain="EAN">1234567890</Classification>', $resultXml);
+    }
+
+    public function testEmptyClassificationIsSkipped(): void
+    {
+        $item = (new ItemIn())
+            ->setQuantity(1)
+            ->setSupplierPartId('TEST-SKU')
+            ->setUnitPrice(100.00)
+            ->setDescription('Test')
+            ->setUnitOfMeasure('EA')
+            ->addClassification('EAN', '5901234567890')
+            ->addClassification('UNSPSC', ''); // Empty should be skipped
+
+        $classifications = $item->getClassifications();
+
+        self::assertCount(1, $classifications);
+        self::assertArrayHasKey('EAN', $classifications);
+        self::assertArrayNotHasKey('UNSPSC', $classifications);
+    }
+
     private function getEnvelope(): CXml
     {
         $cXml = new CXml();
